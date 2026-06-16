@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Квест — Финал</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body data-page="final">
+  <div id="hearts-layer" class="hearts-layer" aria-hidden="true"></div>
+
+  <main class="final-page">
+    <div class="final-content">
+      <h1 id="final-message" class="final-message"></h1>
+      <p id="final-subtitle" class="final-subtitle"></p>
+
+      <!-- Слот для фото или видео (настраивается в script.js) -->
+      <div id="media-slot" class="media-slot">
+        <span class="media-placeholder">📷 Добавь фото в config.js<br><small>mediaPhoto: "assets/photo.jpg"</small></span>
+      </div>
+
+      <div class="music-control">
+        <button id="btn-music" class="btn-music" type="button">🎵 Включить музыку</button>
+      </div>
+
+      <button id="btn-finish" class="btn-finish" type="button">Завершить квист </button>
+    </div>
+  </main>
+
+  <!-- Экран завершения -->
+  <div id="finish-overlay" class="finish-overlay">
+    <p>Ти прошла мой квииист, япииивв! Люблю тебя, с Днем Рождения!! 🌹💕💋❤️</p>
+  </div>
+
+  <script src="config.js?v=2"></script>
+  <script src="script.js?v=7"></script>
+</body>
+</html>

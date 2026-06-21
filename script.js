@@ -18,7 +18,7 @@
  */
 
 // Версия — увеличь число, если браузер показывает старый script.js
-const SCRIPT_VERSION = 7;
+const SCRIPT_VERSION = 8;
 
 // ===== Звуки =====
 let audioCtx = null;
@@ -80,54 +80,21 @@ function playPopperSound() {
   pop.stop(t + 0.1);
 }
 
-let finishMusicTimer = null;
-let finishMusicAudio = null;
+let questMusicAudio = null;
 
-/** Фоновая музыка на финале (после клика «Завершить квест») */
-function startFinishMusic(musicSrc) {
-  if (finishMusicAudio) {
-    finishMusicAudio.pause();
-    finishMusicAudio = null;
-  }
-  if (finishMusicTimer) {
-    clearInterval(finishMusicTimer);
-    finishMusicTimer = null;
-  }
+/** Фоновая музыка квеста (после пазла с Мяулем и на финале) */
+function startQuestMusic(musicSrc) {
+  if (!musicSrc) return;
 
-  if (musicSrc) {
-    finishMusicAudio = new Audio(musicSrc);
-    finishMusicAudio.loop = true;
-    finishMusicAudio.volume = 0.35;
-    finishMusicAudio.play().catch(() => startClassicMelody());
+  if (questMusicAudio) {
+    if (questMusicAudio.paused) questMusicAudio.play().catch(() => {});
     return;
   }
 
-  startClassicMelody();
-}
-
-/** Мягкая «классическая» мелодия через Web Audio (если нет mp3) */
-function startClassicMelody() {
-  const ctx = getAudioContext();
-  const notes = [523, 587, 659, 698, 784, 698, 659, 587, 523, 494, 523, 587];
-  let i = 0;
-
-  finishMusicTimer = setInterval(() => {
-    const t = ctx.currentTime;
-    const freq = notes[i % notes.length];
-    i++;
-
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "triangle";
-    osc.frequency.setValueAtTime(freq, t);
-    gain.gain.setValueAtTime(0, t);
-    gain.gain.linearRampToValueAtTime(0.055, t + 0.04);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.55);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(t);
-    osc.stop(t + 0.6);
-  }, 480);
+  questMusicAudio = new Audio(musicSrc);
+  questMusicAudio.loop = true;
+  questMusicAudio.volume = 0.4;
+  questMusicAudio.play().catch(() => {});
 }
 
 /** Взрыв конфетти */
@@ -701,6 +668,9 @@ function initSlidePuzzlePage() {
   const nextBtn = document.getElementById("btn-next");
   if (!boardEl) return;
 
+  const cfg = window.QUEST_CONFIG || {};
+  const QUEST_MUSIC_SRC = cfg.finishMusicSrc || "";
+
   const COLS = 3;
   const ROWS = 4;
   const IMG = "assets/meowl-puzzle.png";
@@ -858,6 +828,7 @@ function initSlidePuzzlePage() {
 
     isComplete = true;
     playSuccessSound();
+    startQuestMusic(QUEST_MUSIC_SRC);
     boardEl.classList.add("complete-glow");
     if (messageEl) messageEl.classList.add("show");
     setTimeout(() => {
@@ -943,6 +914,8 @@ function initFinalPage() {
   // Частицы-сердечки
   initParticles();
 
+  startQuestMusic(FINISH_MUSIC_SRC);
+
   if (finishBtn && overlay) {
     finishBtn.addEventListener("click", () => {
       if (finishBtn.disabled) return;
@@ -950,7 +923,6 @@ function initFinalPage() {
 
       playPopperSound();
       launchConfetti();
-      startFinishMusic(FINISH_MUSIC_SRC);
       overlay.classList.add("show");
     });
   }

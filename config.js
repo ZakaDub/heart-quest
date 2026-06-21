@@ -39,10 +39,9 @@ window.QUEST_CONFIG = {
   finalMessage: "С Днем Рождения, Любимая!!❤️💋",
   finalSubtitle: "",
 
-  // Своя классическая музыка при «Завершить квест» (mp3 в assets/)
-  // Оставь пустым — включится мягкая мелодия автоматически
-  finishMusicSrc: "",
+  // Музыка после пазла с Мяулем и на финале (mp3 в assets/)
+  finishMusicSrc: "assets/quest-music.mp3",
 
-  // Фото на финале: "assets/photo.jpg"
-  mediaPhoto: "",
+  // Фото на финале
+  mediaPhoto: "assets/photo.jpg",
 };

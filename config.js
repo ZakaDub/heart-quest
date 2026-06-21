@@ -39,7 +39,15 @@ window.QUEST_CONFIG = {
   finalMessage: "С Днем Рождения, Любимая!!❤️💋",
   finalSubtitle: "",
 
-  // Музыка после пазла с Мяулем и на финале (mp3 в assets/)
+  // Громкость музыки на всех страницах (0.0 — 1.0)
+  musicVolume: 0.28,
+
+  // Музыка по страницам (включается кнопкой)
+  musicHeart: "assets/music-heart.mp3",
+  musicPairs: "assets/music-pairs.mp3",
+  musicSlide: "assets/music-slide.mp3",
+
+  // Музыка после пазла с Мяулем и на финале
   finishMusicSrc: "assets/quest-music.mp3",
 
   // Фото на финале

@@ -239,6 +239,14 @@ body[data-page="heart"] {
   padding-bottom: 1rem;
 }
 
+.btn-music-floating {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 12;
+  pointer-events: auto;
+}
+
 .ball {
   position: absolute;
   border-radius: 50%;
@@ -247,14 +255,14 @@ body[data-page="heart"] {
   transform: translate(-50%, -50%);
   user-select: none;
   -webkit-tap-highlight-color: transparent;
-  contain: layout style paint;
 }
 
 /* Анимация лопания — без filter, легче для GPU */
 .ball.popping {
-  animation: ballPop 0.22s ease-out forwards;
+  animation: ballPop 0.2s ease-out forwards;
   pointer-events: none;
   z-index: 6;
+  will-change: transform, opacity;
 }
 
 @keyframes ballPop {
@@ -633,6 +641,16 @@ body[data-page="final"] {
 .btn-music.playing {
   background: var(--neon-pink);
   color: var(--neon-white);
+}
+
+.btn-music.music-hint {
+  animation: musicHintPulse 1.2s ease-in-out infinite;
+  box-shadow: 0 0 20px var(--glow-pink);
+}
+
+@keyframes musicHintPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
 }
 
 .btn-finish {

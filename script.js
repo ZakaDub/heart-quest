@@ -18,7 +18,17 @@
  */
 
 // Версия — увеличь число, если браузер показывает старый script.js
-const SCRIPT_VERSION = 8;
+const SCRIPT_VERSION = 11;
+
+function resolveAssetUrl(path) {
+  if (!path) return "";
+  if (/^(https?:|data:|blob:)/i.test(path)) return path;
+  try {
+    return new URL(path, window.location.href).href;
+  } catch {
+    return path;
+  }
+}
 
 // ===== Звуки =====
 let audioCtx = null;
@@ -81,20 +91,172 @@ function playPopperSound() {
 }
 
 let questMusicAudio = null;
+let pageMusicAudio = null;
+let musicUnlockAttached = false;
+
+function getMusicVolume() {
+  const cfg = window.QUEST_CONFIG || {};
+  return typeof cfg.musicVolume === "number" ? cfg.musicVolume : 0.28;
+}
+
+function getQuestMusicSrc() {
+  return (window.QUEST_CONFIG && window.QUEST_CONFIG.finishMusicSrc) || "";
+}
+
+function preloadQuestMusic() {
+  const src = getQuestMusicSrc();
+  if (!src) return;
+
+  const url = resolveAssetUrl(src);
+  if (questMusicAudio && questMusicAudio.dataset.url === url) return;
+
+  questMusicAudio = new Audio(url);
+  questMusicAudio.dataset.url = url;
+  questMusicAudio.loop = true;
+  questMusicAudio.volume = getMusicVolume();
+  questMusicAudio.preload = "auto";
+  questMusicAudio.load();
+}
+
+function setupMusicUnlock() {
+  if (musicUnlockAttached) return;
+  musicUnlockAttached = true;
+
+  const unlock = () => {
+    if (pageMusicAudio) pageMusicAudio.play().catch(() => {});
+    if (questMusicAudio) questMusicAudio.play().catch(() => {});
+    document.removeEventListener("click", unlock);
+    document.removeEventListener("touchstart", unlock);
+    document.removeEventListener("keydown", unlock);
+  };
+
+  document.addEventListener("click", unlock, { once: true });
+  document.addEventListener("touchstart", unlock, { once: true, passive: true });
+  document.addEventListener("keydown", unlock, { once: true });
+}
 
 /** Фоновая музыка квеста (после пазла с Мяулем и на финале) */
 function startQuestMusic(musicSrc) {
-  if (!musicSrc) return;
+  const src = musicSrc || getQuestMusicSrc();
+  if (!src) return false;
 
-  if (questMusicAudio) {
-    if (questMusicAudio.paused) questMusicAudio.play().catch(() => {});
+  const url = resolveAssetUrl(src);
+  if (!questMusicAudio || questMusicAudio.dataset.url !== url) {
+    questMusicAudio = new Audio(url);
+    questMusicAudio.dataset.url = url;
+    questMusicAudio.loop = true;
+    questMusicAudio.volume = getMusicVolume();
+    questMusicAudio.preload = "auto";
+    questMusicAudio.load();
+  }
+
+  questMusicAudio.volume = getMusicVolume();
+  sessionStorage.setItem("questMusic", "1");
+
+  const tryPlay = () => {
+    const p = questMusicAudio.play();
+    if (p && typeof p.catch === "function") {
+      p.catch(() => setupMusicUnlock());
+    }
+    return p;
+  };
+
+  if (questMusicAudio.readyState >= 2) {
+    tryPlay();
+  } else {
+    questMusicAudio.addEventListener("canplaythrough", tryPlay, { once: true });
+  }
+
+  return true;
+}
+
+function pausePageMusic() {
+  if (pageMusicAudio) pageMusicAudio.pause();
+}
+
+function isPageMusicPlaying() {
+  return !!(pageMusicAudio && !pageMusicAudio.paused);
+}
+
+function startPageMusic(musicSrc) {
+  if (!musicSrc) return false;
+
+  const url = resolveAssetUrl(musicSrc);
+  if (!pageMusicAudio || pageMusicAudio.dataset.url !== url) {
+    pageMusicAudio = new Audio(url);
+    pageMusicAudio.dataset.url = url;
+    pageMusicAudio.loop = true;
+    pageMusicAudio.preload = "auto";
+    pageMusicAudio.load();
+  }
+
+  pageMusicAudio.volume = getMusicVolume();
+
+  const tryPlay = () => {
+    const p = pageMusicAudio.play();
+    if (p && typeof p.catch === "function") {
+      p.catch(() => setupMusicUnlock());
+    }
+    return p;
+  };
+
+  if (pageMusicAudio.readyState >= 2) {
+    tryPlay();
+  } else {
+    pageMusicAudio.addEventListener("canplaythrough", tryPlay, { once: true });
+  }
+
+  return true;
+}
+
+function wirePageMusicButton(btn, musicSrc) {
+  if (!btn) return;
+  if (!musicSrc) {
+    btn.style.display = "none";
     return;
   }
 
-  questMusicAudio = new Audio(musicSrc);
-  questMusicAudio.loop = true;
-  questMusicAudio.volume = 0.4;
-  questMusicAudio.play().catch(() => {});
+  btn.style.display = "";
+  btn.addEventListener("click", () => {
+    if (isPageMusicPlaying()) {
+      pausePageMusic();
+      btn.textContent = "🎵 Музыка";
+      btn.classList.remove("playing");
+    } else {
+      startPageMusic(musicSrc);
+      btn.textContent = "🔇 Музыка";
+      btn.classList.add("playing");
+    }
+  });
+}
+
+function pauseQuestMusic() {
+  if (questMusicAudio) questMusicAudio.pause();
+}
+
+function isQuestMusicPlaying() {
+  return !!(questMusicAudio && !questMusicAudio.paused);
+}
+
+function wireQuestMusicButton(btn, musicSrc) {
+  if (!btn) return;
+  if (!musicSrc) {
+    btn.style.display = "none";
+    return;
+  }
+
+  btn.style.display = "";
+  btn.addEventListener("click", () => {
+    if (isQuestMusicPlaying()) {
+      pauseQuestMusic();
+      btn.textContent = "🎵 Музыка";
+      btn.classList.remove("playing");
+    } else {
+      startQuestMusic(musicSrc);
+      btn.textContent = "🔇 Музыка";
+      btn.classList.add("playing");
+    }
+  });
 }
 
 /** Взрыв конфетти */
@@ -247,11 +409,11 @@ function initHeartPage() {
 
   const width = window.innerWidth;
   const height = window.innerHeight;
-  // Меньше шарики — больше детализация сердца
-  const baseRadius = Math.max(9, Math.min(14, Math.min(width, height) / 38));
+  // Весь экран, один слой — крупнее шарики, меньше лагов
+  const baseRadius = Math.max(11, Math.min(16, Math.min(width, height) / 34));
 
   const balls = generatePackedBalls(width, height, baseRadius);
-  settleBalls(balls, width, height, 15);
+  settleBalls(balls, width, height, 6);
 
   const isInHeart = createHeartMask(width, height);
 
@@ -261,7 +423,6 @@ function initHeartPage() {
     }
   });
 
-  // Кнопка спрятана за одним случайным шариком
   const secretIndex = Math.floor(Math.random() * balls.length);
   let secretRevealed = false;
 
@@ -269,9 +430,11 @@ function initHeartPage() {
   const popped = new Set();
   let lastPopTime = 0;
   const secretBtn = document.getElementById("heart-secret-btn");
+  const popBrushRadius = baseRadius * 2.2;
+  const maxPopsPerMove = 10;
 
   // Пространственная сетка — быстрый поиск шариков под курсором
-  const cellSize = baseRadius * 2.4;
+  const cellSize = baseRadius * 2.8;
   const spatialGrid = new Map();
 
   function gridKey(gx, gy) {
@@ -331,27 +494,37 @@ function initHeartPage() {
     });
   }
 
-  function findBallsAt(mx, my) {
+  function findBallsInBrush(mx, my, brushR) {
     const hits = [];
-    const gx = Math.floor(mx / cellSize);
-    const gy = Math.floor(my / cellSize);
+    const gx0 = Math.floor((mx - brushR) / cellSize);
+    const gy0 = Math.floor((my - brushR) / cellSize);
+    const gx1 = Math.floor((mx + brushR) / cellSize);
+    const gy1 = Math.floor((my + brushR) / cellSize);
 
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        const cell = spatialGrid.get(gridKey(gx + dx, gy + dy));
+    for (let gx = gx0; gx <= gx1; gx++) {
+      for (let gy = gy0; gy <= gy1; gy++) {
+        const cell = spatialGrid.get(gridKey(gx, gy));
         if (!cell) continue;
         for (let n = 0; n < cell.length; n++) {
           const i = cell[n];
           if (popped.has(i)) continue;
           const b = balls[i];
-          const r2 = b.r * b.r;
           const dxp = mx - b.x;
           const dyp = my - b.y;
-          if (dxp * dxp + dyp * dyp <= r2) hits.push(i);
+          const dist2 = dxp * dxp + dyp * dyp;
+          const hitR = b.r + brushR * 0.35;
+          if (dist2 <= hitR * hitR) {
+            hits.push({ i, dist2 });
+          }
         }
       }
     }
-    return hits;
+
+    hits.sort((a, b) => a.dist2 - b.dist2);
+    const limit = Math.min(hits.length, maxPopsPerMove);
+    const result = new Array(limit);
+    for (let h = 0; h < limit; h++) result[h] = hits[h].i;
+    return result;
   }
 
   function revealSecretButton() {
@@ -387,56 +560,88 @@ function initHeartPage() {
     }
   }
 
-  const MAX_POPS_PER_FRAME = 2;
-
-  function popBallsAt(clientX, clientY) {
-    const hits = findBallsAt(clientX, clientY);
-    for (let i = 0; i < Math.min(hits.length, MAX_POPS_PER_FRAME); i++) {
+  function popBallsAt(clientX, clientY, brushR) {
+    const hits = findBallsInBrush(clientX, clientY, brushR || popBrushRadius);
+    for (let i = 0; i < hits.length; i++) {
       popBall(hits[i]);
     }
   }
 
-  // Лопание по наведению (без физики — шарики стоят на месте)
-  let hoverX = 0;
-  let hoverY = 0;
-  let hoverQueued = false;
+  let pointerActive = false;
+  let pointerX = 0;
+  let pointerY = 0;
+  let popLoopRunning = false;
+  let lastPopFrame = 0;
 
-  function queuePopAt(clientX, clientY) {
-    hoverX = clientX;
-    hoverY = clientY;
-    if (hoverQueued) return;
-    hoverQueued = true;
-    requestAnimationFrame(() => {
-      popBallsAt(hoverX, hoverY);
-      hoverQueued = false;
-    });
+  function popLoop(now) {
+    if (!pointerActive) {
+      popLoopRunning = false;
+      return;
+    }
+    if (now - lastPopFrame >= 28) {
+      lastPopFrame = now;
+      popBallsAt(pointerX, pointerY, popBrushRadius);
+    }
+    requestAnimationFrame(popLoop);
   }
 
-  field.addEventListener("mousemove", (e) => queuePopAt(e.clientX, e.clientY));
+  function startPopLoop() {
+    if (popLoopRunning) return;
+    popLoopRunning = true;
+    requestAnimationFrame(popLoop);
+  }
+
+  field.addEventListener("mouseenter", () => {
+    pointerActive = true;
+    startPopLoop();
+  });
+  field.addEventListener("mouseleave", () => {
+    pointerActive = false;
+  });
+  field.addEventListener("mousemove", (e) => {
+    pointerX = e.clientX;
+    pointerY = e.clientY;
+    if (!popLoopRunning) startPopLoop();
+  });
+
   field.addEventListener("touchstart", (e) => {
-    popBallsAt(e.touches[0].clientX, e.touches[0].clientY);
+    pointerActive = true;
+    pointerX = e.touches[0].clientX;
+    pointerY = e.touches[0].clientY;
+    popBallsAt(pointerX, pointerY, popBrushRadius * 1.15);
+    startPopLoop();
   }, { passive: true });
   field.addEventListener("touchmove", (e) => {
-    popBallsAt(e.touches[0].clientX, e.touches[0].clientY);
+    pointerX = e.touches[0].clientX;
+    pointerY = e.touches[0].clientY;
   }, { passive: true });
+  field.addEventListener("touchend", () => {
+    pointerActive = false;
+  }, { passive: true });
+
+  const cfg = window.QUEST_CONFIG || {};
+  wirePageMusicButton(document.getElementById("btn-music"), cfg.musicHeart);
 }
 
 /** Рисуем маску сердца и возвращаем функцию проверки точки */
 function createHeartMask(width, height) {
+  const maskScale = 0.25;
+  const mw = Math.max(1, Math.floor(width * maskScale));
+  const mh = Math.max(1, Math.floor(height * maskScale));
   const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
+  canvas.width = mw;
+  canvas.height = mh;
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
-  const cx = width / 2;
-  const cy = height / 2;
-  const heartWidth = Math.min(width, height) * 0.42;
+  const cx = mw / 2;
+  const cy = mh / 2;
+  const heartWidth = Math.min(width, height) * 0.42 * maskScale;
   const scale = heartWidth / 32;
 
   ctx.fillStyle = "#fff";
   ctx.beginPath();
 
-  for (let i = 0; i <= 400; i++) {
+  for (let i = 0; i <= 200; i++) {
     const t = (i / 400) * Math.PI * 2;
     const hx = 16 * Math.pow(Math.sin(t), 3);
     const hy = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
@@ -450,14 +655,14 @@ function createHeartMask(width, height) {
   ctx.fill();
 
   return (x, y) => {
-    const ix = Math.floor(x);
-    const iy = Math.floor(y);
-    if (ix < 0 || iy < 0 || ix >= width || iy >= height) return false;
+    const ix = Math.floor(x * maskScale);
+    const iy = Math.floor(y * maskScale);
+    if (ix < 0 || iy < 0 || ix >= mw || iy >= mh) return false;
     return ctx.getImageData(ix, iy, 1, 1).data[3] > 128;
   };
 }
 
-/** Генерация шариков на всю страницу */
+/** Генерация шариков на весь экран (один плотный слой) */
 function generatePackedBalls(width, height, radius) {
   const balls = [];
   const spacing = radius * 1.88;
@@ -530,6 +735,9 @@ function initPairsPage() {
   const nextBtn = document.getElementById("btn-next");
   const progressEl = document.getElementById("pairs-progress");
   if (!container) return;
+
+  const cfg = window.QUEST_CONFIG || {};
+  wirePageMusicButton(document.getElementById("btn-music"), cfg.musicPairs);
 
   // === ТВОИ ФРАЗЫ — редактируй config.js в корне проекта ===
   const CUSTOM_PAIRS = (window.QUEST_CONFIG && window.QUEST_CONFIG.pairs) || [
@@ -670,6 +878,7 @@ function initSlidePuzzlePage() {
 
   const cfg = window.QUEST_CONFIG || {};
   const QUEST_MUSIC_SRC = cfg.finishMusicSrc || "";
+  wirePageMusicButton(document.getElementById("btn-music"), cfg.musicSlide);
 
   const COLS = 3;
   const ROWS = 4;
@@ -828,6 +1037,7 @@ function initSlidePuzzlePage() {
 
     isComplete = true;
     playSuccessSound();
+    pausePageMusic();
     startQuestMusic(QUEST_MUSIC_SRC);
     boardEl.classList.add("complete-glow");
     if (messageEl) messageEl.classList.add("show");
@@ -842,6 +1052,7 @@ function initSlidePuzzlePage() {
   if (nextBtn) {
     nextBtn.addEventListener("click", () => {
       playClickSound();
+      startQuestMusic(QUEST_MUSIC_SRC);
       navigateTo("final.html");
     });
   }
@@ -888,33 +1099,18 @@ function initFinalPage() {
     }
   }
 
-  // Кнопка музыки — только если указан отдельный файл (до завершения)
-  const MUSIC_SRC = "";
-  let audio = null;
-  if (musicBtn && MUSIC_SRC) {
-    audio = new Audio(MUSIC_SRC);
-    audio.loop = true;
-    audio.volume = 0.3;
-
-    musicBtn.addEventListener("click", () => {
-      if (audio.paused) {
-        audio.play();
-        musicBtn.textContent = "🔇 Выключить музыку";
-        musicBtn.classList.add("playing");
-      } else {
-        audio.pause();
-        musicBtn.textContent = "🎵 Включить музыку";
-        musicBtn.classList.remove("playing");
-      }
-    });
-  } else if (musicBtn) {
-    musicBtn.style.display = "none";
+  // Кнопка музыки — запасной вариант, если браузер блокирует автозапуск
+  wireQuestMusicButton(musicBtn, FINISH_MUSIC_SRC);
+  if (musicBtn && FINISH_MUSIC_SRC && sessionStorage.getItem("questMusic") === "1") {
+    musicBtn.classList.add("music-hint");
   }
 
   // Частицы-сердечки
   initParticles();
 
-  startQuestMusic(FINISH_MUSIC_SRC);
+  if (sessionStorage.getItem("questMusic") === "1") {
+    startQuestMusic(FINISH_MUSIC_SRC);
+  }
 
   if (finishBtn && overlay) {
     finishBtn.addEventListener("click", () => {
@@ -933,7 +1129,7 @@ function initHeartAmbience() {
   const ambient = document.querySelector(".heart-ambient");
   if (!ambient || ambient.childElementCount > 0) return;
 
-  for (let i = 0; i < 14; i++) {
+  for (let i = 0; i < 8; i++) {
     const s = document.createElement("span");
     s.className = "heart-sparkle";
     s.style.left = Math.random() * 100 + "%";
@@ -969,6 +1165,7 @@ function initParticles() {
 
 // ===== Инициализация по data-page =====
 document.addEventListener("DOMContentLoaded", () => {
+  preloadQuestMusic();
   try {
     const page = document.body.dataset.page;
     switch (page) {

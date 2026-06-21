@@ -18,7 +18,7 @@
  */
 
 // Версия — увеличь число, если браузер показывает старый script.js
-const SCRIPT_VERSION = 12;
+const SCRIPT_VERSION = 13;
 
 function resolveAssetUrl(path) {
   if (!path) return "";
@@ -418,7 +418,7 @@ function initHeartPage() {
   const isInHeart = createHeartMask(width, height);
 
   balls.forEach((b) => {
-    if (isInHeart(b.x, b.y)) {
+    if (isInHeart(b.x, b.y, b.r)) {
       b.isHeart = true;
     }
   });
@@ -623,43 +623,36 @@ function initHeartPage() {
   wirePageMusicButton(document.getElementById("btn-music"), cfg.musicHeart);
 }
 
-/** Рисуем маску сердца и возвращаем функцию проверки точки */
+/** Точная форма сердца (обе половины симметрично) */
 function createHeartMask(width, height) {
-  const maskScale = 0.35;
-  const mw = Math.max(1, Math.floor(width * maskScale));
-  const mh = Math.max(1, Math.floor(height * maskScale));
-  const canvas = document.createElement("canvas");
-  canvas.width = mw;
-  canvas.height = mh;
-  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  const cx = width / 2;
+  const cy = height / 2 + Math.min(width, height) * 0.012;
+  const heartScale = (Math.min(width, height) * 0.42) / 16;
 
-  const cx = mw / 2;
-  const cy = mh / 2;
-  const heartWidth = Math.min(width, height) * 0.42 * maskScale;
-  const scale = heartWidth / 32;
-
-  ctx.fillStyle = "#fff";
-  ctx.beginPath();
-
-  const steps = 400;
-  for (let i = 0; i <= steps; i++) {
-    const t = (i / steps) * Math.PI * 2;
-    const hx = 16 * Math.pow(Math.sin(t), 3);
-    const hy = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
-    const px = cx + hx * scale;
-    const py = cy + hy * scale;
-    if (i === 0) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
+  function inside(x, y, inflate) {
+    const s = heartScale * (1 + inflate);
+    const nx = (x - cx) / s;
+    const ny = (cy - y) / s;
+    const a = nx * nx + ny * ny - 1;
+    return a * a * a - nx * nx * ny * ny * ny <= 0.015;
   }
 
-  ctx.closePath();
-  ctx.fill();
+  return (x, y, ballR = 0) => {
+    const inflate = ballR / heartScale * 0.5;
+    if (inside(x, y, inflate)) return true;
 
-  return (x, y) => {
-    const ix = Math.floor(x * maskScale);
-    const iy = Math.floor(y * maskScale);
-    if (ix < 0 || iy < 0 || ix >= mw || iy >= mh) return false;
-    return ctx.getImageData(ix, iy, 1, 1).data[3] > 128;
+    if (ballR > 0) {
+      const d = ballR * 0.5;
+      const samples = [
+        [d, 0], [-d, 0], [0, d], [0, -d],
+        [d * 0.7, d * 0.7], [-d * 0.7, d * 0.7],
+      ];
+      for (let i = 0; i < samples.length; i++) {
+        if (inside(x + samples[i][0], y + samples[i][1], inflate * 0.6)) return true;
+      }
+    }
+
+    return false;
   };
 }
 

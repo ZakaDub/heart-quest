@@ -18,7 +18,7 @@
  */
 
 // Версия — увеличь число, если браузер показывает старый script.js
-const SCRIPT_VERSION = 11;
+const SCRIPT_VERSION = 12;
 
 function resolveAssetUrl(path) {
   if (!path) return "";
@@ -625,7 +625,7 @@ function initHeartPage() {
 
 /** Рисуем маску сердца и возвращаем функцию проверки точки */
 function createHeartMask(width, height) {
-  const maskScale = 0.25;
+  const maskScale = 0.35;
   const mw = Math.max(1, Math.floor(width * maskScale));
   const mh = Math.max(1, Math.floor(height * maskScale));
   const canvas = document.createElement("canvas");
@@ -641,8 +641,9 @@ function createHeartMask(width, height) {
   ctx.fillStyle = "#fff";
   ctx.beginPath();
 
-  for (let i = 0; i <= 200; i++) {
-    const t = (i / 400) * Math.PI * 2;
+  const steps = 400;
+  for (let i = 0; i <= steps; i++) {
+    const t = (i / steps) * Math.PI * 2;
     const hx = 16 * Math.pow(Math.sin(t), 3);
     const hy = -(13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
     const px = cx + hx * scale;
